@@ -1,0 +1,41 @@
+Metadata-Version: 2.4
+Name: CTD_Toolkit
+Version: 0.1.0
+Summary: Access Argo and MEOP data and interpolate them onto structured grids.
+Author-email: Gros-Martial Anatole <anatole.gros-martial@cebc.cnrs.fr>
+License: MIT
+Project-URL: Repository, https://https://github.com/gmanatole
+Keywords: oceanography,argo,meop,xarray,interpolation,gridding
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Intended Audience :: Science/Research
+Classifier: Topic :: Scientific/Engineering :: Oceanography
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Requires-Dist: numpy>=1.23
+Requires-Dist: xarray>=2023.1.0
+Requires-Dist: pandas>=1.5
+Requires-Dist: tqdm>=4.65
+Requires-Dist: pyarrow>=21.0.0
+Requires-Dist: duckdb>=1.4.4
+Requires-Dist: ipykernel>=6.31.0
+Requires-Dist: dask>=2024.8.0
+Requires-Dist: pyproj>=3.6.1
+Requires-Dist: netcdf4>=1.7.2
+Requires-Dist: matplotlib>=3.9.4
+Provides-Extra: plot
+Requires-Dist: matplotlib>=3.6; extra == "plot"
+Requires-Dist: cartopy>=0.21; extra == "plot"
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0; extra == "dev"
+Requires-Dist: pytest-cov; extra == "dev"
+Requires-Dist: black; extra == "dev"
+Requires-Dist: ruff; extra == "dev"
+Requires-Dist: mypy; extra == "dev"
+Requires-Dist: pre-commit; extra == "dev"
+Provides-Extra: docs
+Requires-Dist: sphinx; extra == "docs"
+Requires-Dist: furo; extra == "docs"
+Requires-Dist: numpydoc; extra == "docs"

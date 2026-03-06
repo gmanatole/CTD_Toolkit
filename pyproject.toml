@@ -1,0 +1,68 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "CTD_Toolkit"
+version = "0.1.0"
+description = "Access Argo and MEOP data and interpolate them onto structured grids."
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+authors = [
+    {name = "Gros-Martial Anatole", email = "anatole.gros-martial@cebc.cnrs.fr"}
+]
+keywords = ["oceanography", "argo", "meop", "xarray", "interpolation", "gridding"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Oceanography"
+]
+
+dependencies = [
+    "numpy>=1.23",
+    "xarray>=2023.1.0",
+    "pandas>=1.5",
+    "tqdm>=4.65",
+    "pyarrow>=21.0.0",
+    "duckdb>=1.4.4",
+    "ipykernel>=6.31.0",
+    "dask>=2024.8.0",
+    "pyproj>=3.6.1",
+    "netcdf4>=1.7.2",
+    "matplotlib>=3.9.4",
+]
+
+[project.optional-dependencies]
+
+plot = [
+    "matplotlib>=3.6",
+    "cartopy>=0.21"
+]
+
+dev = [
+    "pytest>=7.0",
+    "pytest-cov",
+    "black",
+    "ruff",
+    "mypy",
+    "pre-commit"
+]
+
+docs = [
+    "sphinx",
+    "furo",
+    "numpydoc"
+]
+
+[project.urls]
+Repository = "https://https://github.com/gmanatole"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
