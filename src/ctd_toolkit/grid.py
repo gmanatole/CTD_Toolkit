@@ -45,7 +45,12 @@ class DepthRange:
 class TemporalRange:
     """
     Temporal range for grid.
-    Timestep adjustable. eg. "6H", "1D", "30min"
+    Timestep adjustable.
+    freq = "D"      # every day
+    freq = "W-MON"  # weekly on Mondays
+    freq = "MS"     # first day of each month
+    freq = "Q"      # quarter end
+    freq = "YS"     # start of each year
     """
     start: Union[str, datetime]
     end: Union[str, datetime]
@@ -68,7 +73,7 @@ class SpatioTemporalGrid:
         depth: DepthRange,
         time: TemporalRange,
         crs: Optional[str] = "EPSG:4326",
-        chunks: Optional[dict] = None,
+        chunks: tuple =  None
     ):
         latitude.validate("Latitude")
         longitude.validate("Longitude")
@@ -181,6 +186,37 @@ class SpatioTemporalGrid:
             f")"
         )
 
+    def save(self, path: str, engine: str = "netcdf4", compute: bool = False):
+        """
+        Save the grid to a NetCDF4 file.
+
+        Parameters
+        ----------
+        path : str
+            Output file path (.nc)
+        engine : str
+            Backend engine ("netcdf4", "h5netcdf", or "scipy")
+        compute : bool
+            If True, compute dask arrays before saving
+        """
+        if self.dataset is None:
+            raise RuntimeError("Build the grid first.")
+
+        ds = self.dataset
+
+        encoding = {
+            "values": {
+                "zlib": True,
+                "complevel": 4,
+                "dtype": "float32",
+                "chunksizes": self.chunks
+            }
+        }
+
+        if compute and hasattr(ds["values"].data, "compute"):
+            ds = ds.compute()
+
+        ds.to_netcdf(path, engine=engine, encoding=encoding)
 
 
     # def add_variable(self, name: str, data: Union[np.ndarray, da.Array]):
