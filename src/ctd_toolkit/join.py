@@ -2,10 +2,13 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 from tqdm import tqdm
+import netCDF4
+from concurrent.futures import ProcessPoolExecutor
 from typing import Optional
 from ctd_toolkit.utils.sql_query import SQLQuery
 from ctd_toolkit.backend.read_meop import ReadMEOP
 from ctd_toolkit.backend.read_argo import ReadArgo
+from ctd_toolkit.utils.workers import _process_file_joiner
 
 class Join:
     """
@@ -36,7 +39,7 @@ class Join:
         df = self.source.query(sql)
         return df
 
-    def join_data(self, var : str):
+    def join_data(self, var: str, grid_file: str, workers: int = 4):
 
         ds = self.grid.dataset
         df = self.corresponding_files()
@@ -44,35 +47,42 @@ class Join:
         time_idx = ds.indexes["time"].get_indexer(df["timestamp"], method="nearest")
         lat_idx = ds.indexes["latitude"].get_indexer(df["lat"], method="nearest")
         lon_idx = ds.indexes["longitude"].get_indexer(df["lon"], method="nearest")
-        data = ds["values"].data
-        temp_df = pd.DataFrame({
+
+        df = pd.DataFrame({
             "fn": df.fn,
             "profile": df.profile,
             "source": df.source,
             "time": time_idx,
             "lat": lat_idx,
-            "lon": lon_idx})
-        temp_df = temp_df.groupby(["lat", "lon", "time"]).agg(list).reset_index()
-        depth_index = ds.indexes["depth"]
+            "lon": lon_idx
+        })
 
-        for cell in tqdm(temp_df.itertuples(index=False), total=len(temp_df),
-                         desc="Joining in-situ data to grid"):
-            pres_list = []
-            val_list = []
-            for j, fn in enumerate(cell.fn):
-                if cell.source[j] == "MEOP":
-                    reader = ReadMEOP(fn).read(var=var, profiles=cell.profile[j])
-                else:
-                    reader = ReadArgo(fn).read(var=var, profiles=cell.profile[j])
-                pres_list.append(reader["PRES"].ravel())
-                val_list.append(reader[var].ravel())
-            pres = np.concatenate(pres_list)
-            vals = np.concatenate(val_list)
-            pres_idx = depth_index.get_indexer(pres, method="nearest")
-            tmp = pd.DataFrame({"PRES": pres_idx, var: vals})
-            tmp = tmp.groupby("PRES").mean()
-            for pres_i, value in tmp[var].items():
-                data[cell.time, pres_i, cell.lat, cell.lon] = value
+        # group by file
+        file_groups = list(df.groupby("fn"))
+
+        # prepare tasks for workers
+        tasks = [
+            (fn, group.reset_index(drop=True), var, ds.depth.values)
+            for fn, group in file_groups
+        ]
+
+        nc = netCDF4.Dataset(grid_file, "r+")
+        values_var = nc.variables["values"]
+
+        with ProcessPoolExecutor(max_workers=workers) as executor:
+
+            futures = executor.map(_process_file_joiner, tasks)
+
+            for result in tqdm(futures, total=len(tasks), desc="Processing files"):
+
+                if not result:
+                    continue
+
+                for item in result:
+                    time_i, depth_i, lat_i, lon_i, value = item
+                    values_var[time_i, depth_i, lat_i, lon_i] = value
+
+        nc.close()
 
     def _extract_grid_bounds(self):
 
@@ -105,6 +115,43 @@ class Join:
                    FROM
                    {self.path}
                    """)
+
+    # def join_data(self, var : str):
+    #
+    #     ds = self.grid.dataset
+    #     df = self.corresponding_files()
+    #
+    #     time_idx = ds.indexes["time"].get_indexer(df["timestamp"], method="nearest")
+    #     lat_idx = ds.indexes["latitude"].get_indexer(df["lat"], method="nearest")
+    #     lon_idx = ds.indexes["longitude"].get_indexer(df["lon"], method="nearest")
+    #     data = ds["values"].data
+    #     temp_df = pd.DataFrame({
+    #         "fn": df.fn,
+    #         "profile": df.profile,
+    #         "source": df.source,
+    #         "time": time_idx,
+    #         "lat": lat_idx,
+    #         "lon": lon_idx})
+    #     temp_df = temp_df.groupby(["lat", "lon", "time"]).agg(list).reset_index()
+    #     depth_index = ds.indexes["depth"]
+    #
+    #     for cell in tqdm(temp_df.itertuples(index=False), total=len(temp_df),
+    #                      desc="Joining in-situ data to grid"):
+    #         pres_list = []
+    #         val_list = []
+    #         for j, fn in enumerate(cell.fn):
+    #             if cell.source[j] == "MEOP":
+    #                 reader = ReadMEOP(fn).read(var=var, profiles=cell.profile[j])
+    #             else:
+    #                 reader = ReadArgo(fn).read(var=var, profiles=cell.profile[j])
+    #             pres_list.append(reader["PRES"].ravel())
+    #             val_list.append(reader[var].ravel())
+    #         pres = np.concatenate(pres_list)
+    #         vals = np.concatenate(val_list)
+    #         pres_idx = depth_index.get_indexer(pres, method="nearest")
+    #         tmp = pd.DataFrame({"PRES": pres_idx, var: vals}).groupby("PRES").mean()
+    #         for pres_i, value in tmp[var].items():
+    #             data[cell.time, pres_i, cell.lat, cell.lon] = value
 
     # def join_files(self, var : str):
     #     ds = self.grid.dataset

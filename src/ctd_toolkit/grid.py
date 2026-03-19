@@ -117,22 +117,13 @@ class SpatioTemporalGrid:
 
         return lat, lon, depth, time
 
+    def build(self):
 
-
-    def build(self, lazy: bool = True):
         lat, lon, depth, time = self._generate_coordinates()
-
-        shape = (len(time), len(depth), len(lat), len(lon))
-
-        if lazy:
-            data = da.full(shape, np.nan, chunks=self.chunks or "auto", dtype=float)
-        else:
-            data = np.full(shape, np.nan)
+        if not self.chunks:
+            self.chunks = (min(len(time), 10), min(len(depth), 50), min(len(lat), 50), min(len(lon), 50))
 
         ds = xr.Dataset(
-            data_vars={
-                "values": (("time", "depth", "latitude", "longitude"), data)
-            },
             coords={
                 "time": time,
                 "depth": depth,
@@ -147,6 +138,38 @@ class SpatioTemporalGrid:
 
         self.dataset = ds
         return ds
+
+    # def build(self, lazy: bool = True):
+    #     lat, lon, depth, time = self._generate_coordinates()
+    #
+    #     shape = (len(time), len(depth), len(lat), len(lon))
+    #
+    #     if lazy:
+    #         if not self.chunks :
+    #             self.chunks = (min(len(time), 10), min(len(depth), 50), min(len(lat), 50), min(len(lon), 50))
+    #         data = da.empty(shape, chunks=self.chunks, dtype='float32')
+    #         data[:] = np.nan
+    #     else:
+    #         data = np.full(shape, np.nan, dtype='float32')
+    #
+    #     ds = xr.Dataset(
+    #         data_vars={
+    #             "values": (("time", "depth", "latitude", "longitude"), data)
+    #         },
+    #         coords={
+    #             "time": time,
+    #             "depth": depth,
+    #             "latitude": lat,
+    #             "longitude": lon,
+    #         },
+    #         attrs={
+    #             "crs": self.crs.to_string(),
+    #             "description": "4D spatio-temporal grid"
+    #         }
+    #     )
+    #
+    #     self.dataset = ds
+    #     return ds
 
 
     def to_crs(self, new_crs: str):
@@ -186,37 +209,83 @@ class SpatioTemporalGrid:
             f")"
         )
 
-    def save(self, path: str, engine: str = "netcdf4", compute: bool = False):
-        """
-        Save the grid to a NetCDF4 file.
+    def save(self, path: str):
 
-        Parameters
-        ----------
-        path : str
-            Output file path (.nc)
-        engine : str
-            Backend engine ("netcdf4", "h5netcdf", or "scipy")
-        compute : bool
-            If True, compute dask arrays before saving
-        """
+        import netCDF4
+
         if self.dataset is None:
             raise RuntimeError("Build the grid first.")
 
         ds = self.dataset
 
-        encoding = {
-            "values": {
-                "zlib": True,
-                "complevel": 4,
-                "dtype": "float32",
-                "chunksizes": self.chunks
-            }
-        }
+        nc = netCDF4.Dataset(path, "w")
 
-        if compute and hasattr(ds["values"].data, "compute"):
-            ds = ds.compute()
+        # create dimensions
+        nc.createDimension("time", len(ds.time))
+        nc.createDimension("depth", len(ds.depth))
+        nc.createDimension("latitude", len(ds.latitude))
+        nc.createDimension("longitude", len(ds.longitude))
 
-        ds.to_netcdf(path, engine=engine, encoding=encoding)
+        # create coordinate variables
+        time_var = nc.createVariable("time", "f8", ("time",))
+        depth_var = nc.createVariable("depth", "f4", ("depth",))
+        lat_var = nc.createVariable("latitude", "f4", ("latitude",))
+        lon_var = nc.createVariable("longitude", "f4", ("longitude",))
+
+        time_var[:] = ds.time.values.astype("datetime64[s]").astype(float)
+        time_var.units = 'seconds since 1970-01-01'
+        depth_var[:] = ds.depth.values
+        lat_var[:] = ds.latitude.values
+        lon_var[:] = ds.longitude.values
+
+        # create main variable (chunked + compressed)
+        nc.createVariable(
+            "values",
+            "f4",
+            ("time", "depth", "latitude", "longitude"),
+            zlib=True,
+            complevel=4,
+            fill_value=np.nan,
+            chunksizes=self.chunks
+        )
+
+        nc.setncattr("crs", self.crs.to_string())
+        nc.setncattr("description", "4D spatio-temporal grid")
+
+        nc.close()
+
+    # def save(self, path: str, engine: str = "netcdf4", compute: bool = False):
+    #     """
+    #     Save the grid to a NetCDF4 file.
+    #
+    #     Parameters
+    #     ----------
+    #     path : str
+    #         Output file path (.nc)
+    #     engine : str
+    #         Backend engine ("netcdf4", "h5netcdf", or "scipy")
+    #     compute : bool
+    #         If True, compute dask arrays before saving
+    #     """
+    #     if self.dataset is None:
+    #         raise RuntimeError("Build the grid first.")
+    #
+    #     ds = self.dataset
+    #
+    #     encoding = {
+    #         "values": {
+    #             "zlib": True,
+    #             "complevel": 4,
+    #             "dtype": "float32",
+    #             "_FillValue": np.nan,
+    #             "chunksizes": self.chunks
+    #         }
+    #     }
+    #
+    #     if compute and hasattr(ds["values"].data, "compute"):
+    #         ds = ds.compute()
+    #
+    #     ds.to_netcdf(path, engine=engine, encoding=encoding)
 
 
     # def add_variable(self, name: str, data: Union[np.ndarray, da.Array]):
