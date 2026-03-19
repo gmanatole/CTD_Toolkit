@@ -21,6 +21,7 @@ class ReadMEOP :
         self.__ds = nc.Dataset(self.fn, 'r')
         self.__gps = None
         self.__timestamp = None
+        self.__maximum_depth = None
 
     @property
     def timestamp(self) -> pd.Timestamp :
@@ -28,8 +29,12 @@ class ReadMEOP :
         Returns timestamp in UTC of profiles
         """
         if self.__timestamp is None :
-            ref_time = datetime.strptime(b''.join(self.__ds['REFERENCE_DATE_TIME']).decode('utf-8'), '%Y%m%d%H%M%S')
-            self.__timestamp = ref_time + self.__ds['JULD'][:].data.astype('timedelta64[D]').astype('O')
+            if 'REFERENCE_DATE_TIME' in self.__ds.attrs :
+                ref_time = datetime.strptime(b''.join(self.__ds['REFERENCE_DATE_TIME']).decode('utf-8'), '%Y%m%d%H%M%S')
+                self.__timestamp = ref_time + self.__ds['JULD'][:].data.astype('timedelta64[D]').astype('O')
+            else :
+                ref_time = datetime(1950,1,1)
+                self.__timestamp = ref_time + self.__ds['TIME'][:].data.astype('timedelta64[D]').astype('O')
         return self.__timestamp
 
     @property
@@ -41,6 +46,18 @@ class ReadMEOP :
             self.__gps = np.column_stack((self.__ds['LATITUDE'][:].filled(np.nan),
                                           self.__ds['LONGITUDE'][:].filled(np.nan)))
         return self.__gps
+
+    @property
+    def maximum_depth(self, reference = 'TEMP_ADJUSTED') -> np.ndarray :
+        """
+        Returns maximum depth of profile in meters computed wrt reference data
+        """
+        if self.__maximum_depth is None :
+            if reference in self.__ds.variables.keys() :
+                self.__maximum_depth = (~np.isnan(self.__ds[reference][:].filled(np.nan))).cumsum(1).argmax(1)
+            else :
+                self.__maximum_depth = np.nan
+        return self.__maximum_depth
 
     def read(self, var : str | list[str], profiles : int | list[int]) :
         pressure = self.__ds['PRES_ADJUSTED'][profiles].filled(np.nan)

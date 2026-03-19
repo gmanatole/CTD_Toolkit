@@ -20,7 +20,7 @@ class ReadArgo :
         self.__ds = nc.Dataset(self.fn)
         self.__gps = None
         self.__timestamp = None
-
+        self.__maximum_depth = None
 
     @property
     def timestamp(self) -> pd.Timestamp :
@@ -43,16 +43,50 @@ class ReadArgo :
                                           self.__ds['LONGITUDE'][:].filled(np.nan)))
         return self.__gps
 
-    def read(self, var : str | list[str], profiles : int | list[int]) :
-        latitude, longitude = self.gps[profiles]
-        timestamp = self.timestamp[profiles]
-        pressure = self.__ds['PRES_ADJUSTED'][profiles].filled(np.nan)
-        if type(var) is str :
-            data = self.__ds[var][profiles].filled(np.nan)
-            return {'TIMESTAMP': timestamp, 'LATITUDE': latitude, 'LONGITUDE': longitude,
-                    'PRES': pressure, var : data}
-        data = {'TIMESTAMP': timestamp, 'LATITUDE': latitude, 'LONGITUDE': longitude,
-                'PRES': pressure}
-        for _var in var :
-            data = {**data, **{_var : self.__ds[_var][profiles].filled(np.nan)}}
+    @property
+    def maximum_depth(self, reference = 'TEMP_ADJUSTED') -> np.ndarray :
+        """
+        Returns maximum depth of profile in meters, computed wrt temperature data
+        """
+        if self.__maximum_depth is None :
+            self.__maximum_depth = (~np.isnan(self.__ds[reference][:].filled(np.nan))).cumsum(1).argmax(1)
+        return self.__maximum_depth
+
+    def read(self, var: str | list[str], profiles: int | list[int]):
+
+        profiles = np.atleast_1d(profiles)
+        latitude = self.gps[profiles, 0]
+        longitude = self.gps[profiles, 1]
+        timestamp = np.asarray(self.timestamp)[profiles]
+        pressure = self.__ds["PRES_ADJUSTED"][profiles, :].filled(np.nan)
+
+        data = {
+            "TIMESTAMP": timestamp,
+            "LATITUDE": latitude,
+            "LONGITUDE": longitude,
+            "PRES": pressure
+        }
+
+        if isinstance(var, str):
+            values = self.__ds[var][profiles, :].filled(np.nan)
+            data[var] = values
+            return data
+
+        for _var in var:
+            data[_var] = self.__ds[_var][profiles, :].filled(np.nan)
+
         return data
+
+    # def read(self, var : str | list[str], profiles : int | list[int]) :
+    #     latitude, longitude = self.gps[profiles]
+    #     timestamp = self.timestamp[profiles]
+    #     pressure = self.__ds['PRES_ADJUSTED'][profiles].filled(np.nan)
+    #     if type(var) is str :
+    #         data = self.__ds[var][profiles].filled(np.nan)
+    #         return {'TIMESTAMP': timestamp, 'LATITUDE': latitude, 'LONGITUDE': longitude,
+    #                 'PRES': pressure, var : data}
+    #     data = {'TIMESTAMP': timestamp, 'LATITUDE': latitude, 'LONGITUDE': longitude,
+    #             'PRES': pressure}
+    #     for _var in var :
+    #         data = {**data, **{_var : self.__ds[_var][profiles].filled(np.nan)}}
+    #     return data
