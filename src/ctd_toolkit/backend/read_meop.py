@@ -60,11 +60,45 @@ class ReadMEOP :
         return self.__maximum_depth
 
     def read(self, var : str | list[str], profiles : int | list[int]) :
-        pressure = self.__ds['PRES_ADJUSTED'][profiles].filled(np.nan)
-        if type(var) is str :
-            data = self.__ds[var][profiles].filled(np.nan)
-            return {'PRES': pressure, var : data}
-        data = {'PRES': pressure}
-        for _var in var :
-            data = {**data, **{_var : self.__ds[_var][profiles].filled(np.nan)}}
+        profiles = np.atleast_1d(profiles)
+        latitude = self.gps[profiles, 0]
+        longitude = self.gps[profiles, 1]
+        timestamp = np.asarray(self.timestamp)[profiles]
+        pressure = self.__ds["PRES_ADJUSTED"][profiles, :].filled(np.nan)
+
+        data = {
+            "TIMESTAMP": timestamp,
+            "LATITUDE": latitude,
+            "LONGITUDE": longitude,
+            "PRES": pressure
+        }
+
+        if isinstance(var, str):
+            values = self.__ds[var][profiles, :].filled(np.nan)
+            data[var] = values
+            return data
+
+        for _var in var:
+            data[_var] = self.__ds[_var][profiles, :].filled(np.nan)
+
         return data
+
+    def unformatted_data(self, var : str | list[str], profiles : int | list[int]) :
+        profiles = np.atleast_1d(profiles)
+        pressure = self.__ds["PRES_ADJUSTED"][profiles, :].filled(np.nan)
+        data = {"PRES": pressure}
+        if isinstance(var, str):
+            values = self.__ds[var][profiles, :].filled(np.nan)
+            data[var] = values
+            return data
+        for _var in var:
+            data[_var] = self.__ds[_var][profiles, :].filled(np.nan)
+        return data
+        # pressure = self.__ds['PRES_ADJUSTED'][profiles].filled(np.nan)
+        # if type(var) is str :
+        #     data = self.__ds[var][profiles].filled(np.nan)
+        #     return {'PRES': pressure, var : data}
+        # data = {'PRES': pressure}
+        # for _var in var :
+        #     data = {**data, **{_var : self.__ds[_var][profiles].filled(np.nan)}}
+        # return data

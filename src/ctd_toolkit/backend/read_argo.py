@@ -77,6 +77,19 @@ class ReadArgo :
 
         return data
 
+    def unformatted_data(self, var : str | list[str], profiles : int | list[int]) :
+
+        profiles = np.atleast_1d(profiles)
+        pressure = self.__ds["PRES_ADJUSTED"][profiles, :].filled(np.nan)
+        data = {"PRES": pressure}
+        if isinstance(var, str):
+            values = self.__ds[var][profiles, :].filled(np.nan)
+            data[var] = values
+            return data
+        for _var in var:
+            data[_var] = self.__ds[_var][profiles, :].filled(np.nan)
+        return data
+
     # def read(self, var : str | list[str], profiles : int | list[int]) :
     #     latitude, longitude = self.gps[profiles]
     #     timestamp = self.timestamp[profiles]
