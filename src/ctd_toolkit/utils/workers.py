@@ -9,14 +9,18 @@ def _process_file_reader(args):
     fn, group, var = args
 
     if group.source.iloc[0] == "MEOP":
-        reader = ReadMEOP(fn).read(var=var, profiles=group.profile.tolist())
+        reader = ReadMEOP(fn)
+        data = reader.read(var=var, profiles=group.profile.tolist())
+        gps = reader.gps
     else:
-        reader = ReadArgo(fn).read(var=var, profiles=group.profile.tolist())
+        reader = ReadArgo(fn)
+        data = reader.read(var=var, profiles=group.profile.tolist())
+        gps = reader.gps
 
-    pres = reader["PRES"]
-    vals = reader[var]
+    pres = data["PRES"]
+    vals = data[var]
 
-    return pres, vals
+    return pres, vals, gps
 
 def _process_file_joiner(args):
 

@@ -31,6 +31,8 @@ def get_directory_profiles(directory : str, source : str, resolution = '') :
         for file in files:
             if (file.endswith(".nc")) & (resolution in file) :
                 fns.append(os.path.join(root, file))
+            elif (file.endswith(".nc")) & ('hr1' in file) & (~os.path.exists(os.path.join(root, file.replace('hr1', 'fr1')))):
+                fns.append(os.path.join(root, file))
     return list(zip([source]*len(fns), fns))
 
 def process_file(args):

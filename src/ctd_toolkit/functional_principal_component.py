@@ -51,8 +51,8 @@ class FunctionalPrincipalComponent:
         self.__depth_min = value
 
     def filter_depth(self) :
-        depth, data = [], []
-        for _depth, _data in zip(self.depth, self.data):
+        depth, data, gps = [], [], []
+        for _depth, _data, _gps in zip(self.depth, self.data, self.gps):
             _depth = _depth.flatten()
             _data = _data.flatten()
             if (np.nanmax(_depth) > self.depth_max) & (np.nanmin(_depth) < self.depth_min):
@@ -62,10 +62,12 @@ class FunctionalPrincipalComponent:
                 _data_interp = _data_interp[np.isin(depth_range, _depth_interp)]
                 if np.isnan(_data_interp).sum() > 0:
                     continue
+                gps.append(_gps)
                 depth.append(_depth_interp)
                 data.append(_data_interp)
         self.data = np.array(data)
         self.depth = np.array(depth)
+        self.gps = np.array(gps)
 
     def base_projection(self) :
         # Create bspline base
@@ -89,13 +91,13 @@ class FunctionalPrincipalComponent:
         n = self.alpha.shape[0]
         C = self.alpha - alpha_mean
         C_norm = (self.alpha - alpha_mean) / alpha_std
-        mat_cov = (C.T @ C) / n
-        mat_cor = (C_norm.T @ C_norm) / n
+        self.mat_cov = (C.T @ C) / n
+        self.mat_cor = (C_norm.T @ C_norm) / n
         W = self.basis.gram_matrix()
         self.W = (W + W.T) / 2
         Wdem = cholesky(W)
         Wdeminv = solve_triangular(Wdem, np.eye(Wdem.shape[0]))
-        eigenvalues, eigenvectors = np.linalg.eig(Wdem @ mat_cov @ Wdem.T)
+        eigenvalues, eigenvectors = np.linalg.eig(Wdem @ self.mat_cov @ Wdem.T)
 
         # Handle complex numbers if needed
         eigenvalues = np.real(eigenvalues)
@@ -120,6 +122,15 @@ class FunctionalPrincipalComponent:
             'axe': axe,
             'pc': pc,
             'pval': pval}
+
+    def profile_reconstruction(self, K = None) :
+        if not K :
+            K = self.K
+        grid_points = np.arange(self.depth_min, self.depth_max + 1)
+        alpha_recon = self.alpha.mean(axis=0) + self.mfpca['pc'][:, :K] @ self.mfpca['vectors'][:, :K].T
+        phi = self.basis(grid_points)
+        x_recon = alpha_recon @ phi.squeeze()
+        self.X = x_recon
 
     def visualize_projection(self) :
         idx = np.random.choice(self.data.shape[0], 10, replace=False)
@@ -155,14 +166,16 @@ class FunctionalPrincipalComponent:
             (fn, group.reset_index(drop=True), self.var)
             for fn, group in file_groups
         ]
-        depth, data = [], []
+        depth, data, gps = [], [], []
         with ProcessPoolExecutor(max_workers=workers) as executor:
             futures = executor.map(_process_file_reader, tasks)
             for result in tqdm(futures, total=len(tasks), desc="Processing files"):
                 data.extend(result[1])
                 depth.extend(result[0])
+                gps.extend(result[2])
         self.data = data
         self.depth = depth
+        self.gps = gps
 
     def _extract_grid_bounds(self):
 
