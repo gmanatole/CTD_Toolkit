@@ -1,3 +1,4 @@
+README.md
 pyproject.toml
 src/CTD_Toolkit.egg-info/PKG-INFO
 src/CTD_Toolkit.egg-info/SOURCES.txt
@@ -5,11 +6,19 @@ src/CTD_Toolkit.egg-info/dependency_links.txt
 src/CTD_Toolkit.egg-info/requires.txt
 src/CTD_Toolkit.egg-info/top_level.txt
 src/ctd_toolkit/__init__.py
+src/ctd_toolkit/analysis.py
+src/ctd_toolkit/base_loader.py
+src/ctd_toolkit/functional_principal_component.py
 src/ctd_toolkit/grid.py
 src/ctd_toolkit/join.py
 src/ctd_toolkit/backend/__init__.py
 src/ctd_toolkit/backend/read_argo.py
 src/ctd_toolkit/backend/read_meop.py
+src/ctd_toolkit/compression/data_augmentation.py
+src/ctd_toolkit/compression/model.py
+src/ctd_toolkit/compression/train.py
+src/ctd_toolkit/plot/plot_fpca.py
 src/ctd_toolkit/utils/__init__.py
 src/ctd_toolkit/utils/database_utils.py
 src/ctd_toolkit/utils/sql_query.py
+src/ctd_toolkit/utils/workers.py

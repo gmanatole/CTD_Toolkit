@@ -34,6 +34,9 @@ dependencies = [
     "pyproj>=3.6.1",
     "netcdf4>=1.7.2",
     "matplotlib>=3.9.4",
+    "folium>=0.20.0",
+    "cmocean>=4.0.3",
+    "soundfile>=0.13.1",
 ]
 
 [project.optional-dependencies]

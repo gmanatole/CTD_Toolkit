@@ -29,7 +29,7 @@ class ReadMEOP :
         Returns timestamp in UTC of profiles
         """
         if self.__timestamp is None :
-            if 'REFERENCE_DATE_TIME' in self.__ds.attrs :
+            if 'REFERENCE_DATE_TIME' in self.__ds.variables :
                 ref_time = datetime.strptime(b''.join(self.__ds['REFERENCE_DATE_TIME']).decode('utf-8'), '%Y%m%d%H%M%S')
                 self.__timestamp = ref_time + self.__ds['JULD'][:].data.astype('timedelta64[D]').astype('O')
             else :
