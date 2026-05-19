@@ -2,15 +2,16 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 from tqdm import tqdm
-import netCDF4
+import netCDF4 as nc
 from concurrent.futures import ProcessPoolExecutor
 from typing import Optional
 from ctd_toolkit.utils.sql_query import SQLQuery
 from ctd_toolkit.backend.read_meop import ReadMEOP
 from ctd_toolkit.backend.read_argo import ReadArgo
+from ctd_toolkit.base_loader import BaseLoader
 from ctd_toolkit.utils.workers import _process_file_joiner
 
-class Join:
+class Join(BaseLoader):
     """
     Class that handles the join of in-situ data profiles to the grid
     onto an AdvancedSpatioTemporalGrid.
@@ -32,14 +33,14 @@ class Join:
             self._create_view()
             self.path = "profiles"
 
-    def corresponding_files(self):
+    # def corresponding_files(self):
+    #
+    #     bounds = self._extract_grid_bounds()
+    #     sql = self._file_query(bounds=bounds)
+    #     df = self.source.query(sql)
+    #     return df
 
-        bounds = self._extract_grid_bounds()
-        sql = self._file_query(bounds=bounds)
-        df = self.source.query(sql)
-        return df
-
-    def join_data(self, var: str, grid_file: str, workers: int = 4):
+    def get_profiles(self, var: str, grid_file: str, workers: int = 4):
 
         ds = self.grid.dataset
         df = self.corresponding_files()
@@ -66,8 +67,8 @@ class Join:
             for fn, group in file_groups
         ]
 
-        nc = netCDF4.Dataset(grid_file, "r+")
-        values_var = nc.variables["values"]
+        ds = nc.Dataset(grid_file, "r+")
+        values_var = ds.variables["values"]
 
         with ProcessPoolExecutor(max_workers=workers) as executor:
 
@@ -82,31 +83,55 @@ class Join:
                     time_i, depth_i, lat_i, lon_i, value = item
                     values_var[time_i, depth_i, lat_i, lon_i] = value
 
-        nc.close()
+        ds.close()
 
-    def _extract_grid_bounds(self):
+    def get_model(self, path : str, var : list[str] = 'TEMP_ADJUSTED'):
 
-        ds = self.grid.dataset
+        lat_idx = np.digitize(self.gps[:, 0], self.grid.dataset.latitude.values) - 1
+        lon_idx = np.digitize(self.gps[:, 1], self.grid.dataset.longitude.values) - 1
+        depth_idx = np.digitize(self.depth, self.grid.dataset.depth.values) - 1
+        time_idx = np.digitize(pd.to_datetime(self.timestamp).values.astype("datetime64[ns]").astype('int64'),
+                               self.grid.dataset.time.values.astype("datetime64[ns]").astype('int64')) - 1
+        T = len(self.grid.dataset.time)
+        Y = len(self.grid.dataset.latitude)
+        X = len(self.grid.dataset.longitude)
+        Z = len(self.grid.dataset.depth)
+        sum_array = np.zeros((T, Y, X, Z, 1))
+        count_array = np.zeros((T, Y, X, Z, 1))
+        np.add.at(count_array, (time_idx, lat_idx, lon_idx, depth_idx, 0), 1)
+        for _var in var :
+            np.add.at(sum_array, (time_idx, lat_idx, lon_idx, depth_idx, slice(None)), self.data[_var])
+            mean_array = sum_array / count_array
+            mean_array[np.tile(count_array) == 0] = np.nan
+            self.grid.dataset[_var] = xr.DataArray(
+                mean_array,
+                dims=("time", "latitude", "longitude", "depth"))
+            self.grid.dataset.to_netcdf(
+                os.path.join(save_path, kwargs['grid_file'] if 'grid_file' in kwargs.keys() else 'model_data.nc'))
 
-        return {
-            "time_min": str(ds.time.min().values),
-            "time_max": str(ds.time.max().values),
-            "lat_min": float(ds.latitude.min().values),
-            "lat_max": float(ds.latitude.max().values),
-            "lon_min": float(ds.longitude.min().values),
-            "lon_max": float(ds.longitude.max().values),
-        }
-
-    def _file_query(self, bounds):
-        sql = f"""
-        SELECT *
-        FROM {self.path}
-        WHERE
-            timestamp BETWEEN TIMESTAMP '{bounds["time_min"]}' AND TIMESTAMP '{bounds["time_max"]}'
-            AND lat BETWEEN {bounds["lat_min"]} AND {bounds["lat_max"]}
-            AND lon BETWEEN {bounds["lon_min"]} AND {bounds["lon_max"]}
-        """
-        return sql
+    # def _extract_grid_bounds(self):
+    #
+    #     ds = self.grid.dataset
+    #
+    #     return {
+    #         "time_min": str(ds.time.min().values),
+    #         "time_max": str(ds.time.max().values),
+    #         "lat_min": float(ds.latitude.min().values),
+    #         "lat_max": float(ds.latitude.max().values),
+    #         "lon_min": float(ds.longitude.min().values),
+    #         "lon_max": float(ds.longitude.max().values),
+    #     }
+    #
+    # def _file_query(self, bounds):
+    #     sql = f"""
+    #     SELECT *
+    #     FROM {self.path}
+    #     WHERE
+    #         timestamp BETWEEN TIMESTAMP '{bounds["time_min"]}' AND TIMESTAMP '{bounds["time_max"]}'
+    #         AND lat BETWEEN {bounds["lat_min"]} AND {bounds["lat_max"]}
+    #         AND lon BETWEEN {bounds["lon_min"]} AND {bounds["lon_max"]}
+    #     """
+    #     return sql
 
     def _create_view(self) :
         self.source.query(f"""

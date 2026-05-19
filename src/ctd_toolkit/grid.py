@@ -70,8 +70,8 @@ class SpatioTemporalGrid:
         self,
         latitude: SpatialRange,
         longitude: SpatialRange,
-        depth: DepthRange,
         time: TemporalRange,
+        depth: Optional[DepthRange] = None,
         crs: Optional[str] = "EPSG:4326",
         chunks: tuple =  None
     ):
@@ -103,19 +103,22 @@ class SpatioTemporalGrid:
             self.longitude.step
         )
 
-        depth = np.arange(
-            self.depth.start,
-            self.depth.end + self.depth.step,
-            self.depth.step
-        )
-
         time = pd.date_range(
             start=self.time.start,
             end=self.time.end,
             freq=self.time.freq
         )
 
-        return lat, lon, depth, time
+        if self.depth is not None :
+            depth = np.arange(
+                self.depth.start,
+                self.depth.end + self.depth.step,
+                self.depth.step
+            )
+            return lat, lon, depth, time
+
+        else :
+            return lat, lon, None, time
 
     def build(self):
 
@@ -123,13 +126,16 @@ class SpatioTemporalGrid:
         if not self.chunks:
             self.chunks = (min(len(time), 10), min(len(depth), 50), min(len(lat), 50), min(len(lon), 50))
 
+        coords = {
+            "time": time,
+            "latitude": lat,
+            "longitude": lon,
+        }
+        if depth is not None:
+            coords["depth"] = depth
+
         ds = xr.Dataset(
-            coords={
-                "time": time,
-                "depth": depth,
-                "latitude": lat,
-                "longitude": lon,
-            },
+            coords=coords,
             attrs={
                 "crs": self.crs.to_string(),
                 "description": "4D spatio-temporal grid"
@@ -138,38 +144,6 @@ class SpatioTemporalGrid:
 
         self.dataset = ds
         return ds
-
-    # def build(self, lazy: bool = True):
-    #     lat, lon, depth, time = self._generate_coordinates()
-    #
-    #     shape = (len(time), len(depth), len(lat), len(lon))
-    #
-    #     if lazy:
-    #         if not self.chunks :
-    #             self.chunks = (min(len(time), 10), min(len(depth), 50), min(len(lat), 50), min(len(lon), 50))
-    #         data = da.empty(shape, chunks=self.chunks, dtype='float32')
-    #         data[:] = np.nan
-    #     else:
-    #         data = np.full(shape, np.nan, dtype='float32')
-    #
-    #     ds = xr.Dataset(
-    #         data_vars={
-    #             "values": (("time", "depth", "latitude", "longitude"), data)
-    #         },
-    #         coords={
-    #             "time": time,
-    #             "depth": depth,
-    #             "latitude": lat,
-    #             "longitude": lon,
-    #         },
-    #         attrs={
-    #             "crs": self.crs.to_string(),
-    #             "description": "4D spatio-temporal grid"
-    #         }
-    #     )
-    #
-    #     self.dataset = ds
-    #     return ds
 
 
     def to_crs(self, new_crs: str):
@@ -254,6 +228,38 @@ class SpatioTemporalGrid:
 
         nc.close()
 
+
+    # def build(self, lazy: bool = True):
+    #     lat, lon, depth, time = self._generate_coordinates()
+    #
+    #     shape = (len(time), len(depth), len(lat), len(lon))
+    #
+    #     if lazy:
+    #         if not self.chunks :
+    #             self.chunks = (min(len(time), 10), min(len(depth), 50), min(len(lat), 50), min(len(lon), 50))
+    #         data = da.empty(shape, chunks=self.chunks, dtype='float32')
+    #         data[:] = np.nan
+    #     else:
+    #         data = np.full(shape, np.nan, dtype='float32')
+    #
+    #     ds = xr.Dataset(
+    #         data_vars={
+    #             "values": (("time", "depth", "latitude", "longitude"), data)
+    #         },
+    #         coords={
+    #             "time": time,
+    #             "depth": depth,
+    #             "latitude": lat,
+    #             "longitude": lon,
+    #         },
+    #         attrs={
+    #             "crs": self.crs.to_string(),
+    #             "description": "4D spatio-temporal grid"
+    #         }
+    #     )
+    #
+    #     self.dataset = ds
+    #     return ds
     # def save(self, path: str, engine: str = "netcdf4", compute: bool = False):
     #     """
     #     Save the grid to a NetCDF4 file.

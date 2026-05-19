@@ -38,10 +38,8 @@ class Analysis:
 
     def _load_dataset(self, chunks):
 
-        files = sorted(self.path.glob("*.nc"))
-
         ds = xr.open_mfdataset(
-            files,
+            self.path,
             combine="by_coords",
             parallel=True,
             chunks=chunks
@@ -61,6 +59,19 @@ class Analysis:
 
         return ds
 
+    def latitude_gradient(self, var = 'TEMP_ADJUSTED') :
+        fig, ax = plt.subplots(figsize=(5, 10))
+        cmap = plt.get_cmap('viridis')
+        month_mask = (np.isin(self.month_data, self.months))
+        for year in np.unique(pd.to_datetime(self.timestamp).year):
+            time_mask = (pd.to_datetime(self.ds['time']).year == year) & month_mask
+            ax.scatter(np.nanmean(self.ds[var][:].data[time_mask, :, :], axis=(0, 2)),
+                        self.ds['latitude'],
+                        color=cmap((year - 2000) / 20),
+                        s = 10, alpha = 0.7,
+                        label=str(year))
+        ax.legend()
+        ax.invert_xaxis()
 
     def spatial_mean(self):
 
